@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Find a Lawyer - Lawlink</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f4f7f6; }
+        .header { background-color: #004d99; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
+        .header h1 { margin: 0; font-size: 1.8em; }
+        .auth-links { text-align: right; display: flex; align-items: center; }
+        .auth-links a { color: #ffcc00; margin-left: 15px; text-decoration: none; font-weight: bold; transition: color 0.2s; white-space: nowrap; }
+        .auth-links a:hover { color: white; }
+        
+        /* --- Delete Button Styling --- */
+        .delete-form { margin-left: 15px; display: inline-block; }
+        .delete-btn-header {
+            background-color: #dc3545; /* Red */
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+            font-size: 0.9em;
+        }
+        .delete-btn-header:hover { background-color: #c82333; }
+        /* --- End Delete Button Styling --- */
+        
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        h2 { color: #004d99; margin-bottom: 25px; }
+        .lawyer-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; }
+        .lawyer-card { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column; align-items: center; text-align: center; border-top: 5px solid #007bff; }
+        .lawyer-card:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); }
+        .profile-image-container { width: 100px; height: 100px; margin-bottom: 15px; overflow: hidden; border-radius: 50%; background-color: #f0f0f0; border: 3px solid #004d99; display: flex; align-items: center; justify-content: center; }
+        .profile-image { width: 100%; height: 100%; object-fit: cover; }
+        .default-icon { font-size: 3em; color: #ccc; }
+        .lawyer-card h3 { color: #004d99; margin-top: 0; margin-bottom: 5px; }
+        .lawyer-card p { margin: 5px 0; font-size: 0.9em; color: #555; }
+        .lawyer-card .specialty { font-weight: bold; color: #1df54f; margin-bottom: 15px; }
+        .chat-btn { display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; border-radius: 4px; text-decoration: none; font-weight: bold; transition: background-color 0.2s; margin-top: 10px; }
+        .chat-btn:hover { background-color: #0056b3; }
+        .no-lawyers { text-align: center; padding: 40px; font-size: 1.2em; color: #6c757d; background-color: white; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Lawlink</h1>
+        <div class="auth-links">
+            {% if current_user.is_authenticated and current_user.is_active %}
+                <a href="{{ url_for('lawyer_dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="{{ url_for('edit_profile') }}"><i class="fas fa-user-edit"></i> Edit Profile</a>
+                
+                <form class="delete-form" action="{{ url_for('delete_account') }}" method="POST" onsubmit="return confirm('WARNING: Are you absolutely sure you want to delete your entire account? This action is permanent and irreversible.');">
+                    <button type="submit" class="delete-btn-header">
+                        <i class="fas fa-user-times"></i> Delete Account
+                    </button>
+                </form>
+
+                <a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout ({{ current_user.name }})</a>
+            {% else %}
+                <a href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt"></i> Lawyer Login</a>
+                <a href="{{ url_for('register_lawyer') }}"><i class="fas fa-user-plus"></i> Lawyer Register</a>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>Available Lawyers</h2>
+        <div class="lawyer-list">
+            {% for lawyer in lawyers %}
+            <div class="lawyer-card">
+                <div class="profile-image-container">
+                    {% if lawyer.profile_image_url %}
+                        <img src="{{ lawyer.profile_image_url }}" alt="{{ lawyer.name }} Profile" class="profile-image">
+                    {% else %}
+                        <i class="fas fa-user-tie default-icon"></i>
+                    {% endif %}
+                </div>
+                <h3>{{ lawyer.name }}</h3>
+                <p class="specialty">{{ lawyer.specialty }}</p>
+                <p><i class="fas fa-envelope"></i> {{ lawyer.email }}</p>
+                {% if lawyer.contact_number %}
+                <p><i class="fas fa-phone-alt"></i> {{ lawyer.contact_number }}</p>
+                {% endif %}
+                {% if lawyer.chamber_address %}
+                <p><i class="fas fa-map-marker-alt"></i> {{ lawyer.chamber_address }}</p>
+                {% endif %}
+                
+                {% if not current_user.is_authenticated or current_user.id != lawyer.id %}
+                    <a href="{{ url_for('start_chat', lawyer_id=lawyer.id) }}" class="chat-btn">Start Chat</a>
+                {% else %}
+                    <a href="{{ url_for('lawyer_dashboard') }}" class="chat-btn" style="background-color:#28a745;">
+                        <i class="fas fa-tachometer-alt"></i> View Your Dashboard
+                    </a>
+                {% endif %}
+
+            </div>
+            {% else %}
+                <div class="no-lawyers">
+                    <p>No lawyers are currently available for chat. Please check back later.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lawyer Login</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body { font-family: sans-serif; background-color: #004d99; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-container { background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); width: 350px; text-align: center; }
+        h2 { color: #004d99; margin-bottom: 25px; }
+        input[type="email"], input[type="password"] { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .form-group { text-align: left; margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        .remember-me { text-align: left; margin-bottom: 20px; font-size: 0.9em; }
+        .remember-me input { margin-right: 5px; }
+        button[type="submit"] { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1.1em; font-weight: bold; transition: background-color 0.2s; }
+        button[type="submit"]:hover { background-color: #0056b3; }
+        .register-link { margin-top: 15px; font-size: 0.9em; }
+        .register-link a { color: #007bff; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h2>Lawyer Login</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            <div class="form-group">
+                <label for="email"><i class="fas fa-envelope"></i> Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="password"><i class="fas fa-lock"></i> Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <div class="remember-me">
+                <input type="checkbox" id="remember" name="remember">
+                <label for="remember">Remember Me</label>
+            </div>
+            
+            <button type="submit">Log In</button>
+        </form>
+        
+        <div class="register-link">
+            Need an account? <a href="{{ url_for('register_lawyer') }}">Register here</a>
+        </div>
+    </div>
+</body>
+</html>

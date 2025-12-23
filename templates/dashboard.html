@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Lawyer Dashboard - {{ lawyer.name }}</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        /* BASE STYLES */
+        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background-color: #5adbb0; }
+        .header { 
+            background-color: #004d99; 
+            color: rgb(243, 197, 197); 
+            padding: 15px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+        }
+        .header h1 { margin: 0; font-size: 1.8em; }
+        .logout-link { color: #ffcc00; text-decoration: none; font-weight: bold; }
+        .main-container { display: flex; flex-grow: 1; overflow: hidden; }
+        
+        .profile-sidebar { 
+            width: 300px; 
+            background-color: #e9ecef; 
+            border-right: 1px solid #ccc; 
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .profile-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            width: 100%;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .profile-image-container {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            overflow: hidden;
+        }
+
+        .profile-image { width: 100%; height: 100%; object-fit: cover; }
+        .default-icon { font-size: 50px; color: #666; }
+
+        .edit-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            width: 90%;
+            font-weight: bold;
+        }
+
+        /* NEW: Delete Account Button Styling */
+        .delete-account-btn {
+            width: 100%;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: transparent;
+            color: #dc3545;
+            border: 1px solid #dc3545;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .delete-account-btn:hover {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        /* CHAT INTERFACE STYLES */
+        .chat-interface { flex-grow: 1; display: flex; flex-direction: column; background: #f8f9fa; }
+        .chat-header { padding: 15px; background: #fff; border-bottom: 1px solid #ccc; font-weight: bold; }
+        .chat-window { flex-grow: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+
+        /* MESSAGE BUBBLES */
+        .message-row { display: flex; width: 100%; margin-bottom: 10px; }
+        .lawyer-message-row { justify-content: flex-end; }
+        .client-message-row { justify-content: flex-start; }
+        
+        .message { 
+            padding: 10px 15px; 
+            border-radius: 18px; 
+            max-width: 70%; 
+            line-height: 1.4; 
+            position: relative; 
+            display: flex; 
+            flex-direction: column;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+            cursor: pointer; 
+        }
+        .lawyer-message { background-color: #007bff; color: white; border-bottom-right-radius: 2px; }
+        .client-message { background-color: #e4e6eb; color: #050505; border-bottom-left-radius: 2px; }
+
+        .avatar { width: 35px; height: 35px; border-radius: 50%; background: #004d99; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; margin: 0 10px; }
+
+        .delete-btn, .edit-msg-btn {
+            position: absolute;
+            top: -10px; 
+            width: 20px;
+            height: 20px;
+            font-size: 0.6em;
+            cursor: pointer;
+            display: none; 
+            border: none;
+            border-radius: 50%;
+            color: white;
+        }
+        .delete-btn { right: 5px; background: #dc3545; }
+        .edit-msg-btn { right: 30px; background: #ffc107; color: #333; }
+        
+        .message:hover .delete-btn, .message:hover .edit-msg-btn { display: block; }
+
+        .input-area { display: flex; padding: 10px; background-color: white; border-top: 1px solid #ccc; }
+        .input-area input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; margin-right: 10px; }
+        .input-area button { padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 20px; cursor: pointer; }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Lawlink - Dashboard</h1>
+        <a href="{{ url_for('logout') }}" class="logout-link">Log Out</a>
+    </div>
+
+    <div class="main-container">
+        <div class="profile-sidebar">
+            <div class="profile-card">
+                <div class="profile-image-container">
+                    {% if lawyer.profile_image_url %}
+                        <img src="{{ lawyer.profile_image_url }}" alt="{{ lawyer.name }} Profile" class="profile-image">
+                    {% else %}
+                        <i class="fas fa-user-tie default-icon"></i>
+                    {% endif %}
+                </div>
+                
+                <h3>{{ lawyer.name }}</h3>
+                <p class="specialty">{{ lawyer.specialty }}</p>
+                <p>📧 {{ lawyer.email }}</p>
+                <p>📞 {{ lawyer.contact_number }}</p>
+                
+                <a href="{{ url_for('edit_profile') }}" class="edit-btn">Edit Profile Details</a>
+
+                <form action="{{ url_for('delete_account') }}" method="POST" 
+                      onsubmit="return confirm('⚠️ PERMANENT ACTION: Are you sure you want to delete your account? This will erase all your profile data and chat history forever.');">
+                    <button type="submit" class="delete-account-btn">
+                        <i class="fas fa-trash-alt"></i> Delete My Account
+                    </button>
+                </form>
+            </div>
+            
+            <div style="margin-top: 20px; width: 100%;">
+                <h2>Active Chats</h2>
+                <div class="chat-item" style="padding: 10px; background: #fff; border-radius: 5px; border: 1px solid #ddd;">
+                    Client Chat (Room {{ lawyer.id }})
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-interface">
+            <div class="chat-header" id="chat-room-name">
+                Active Chat: Client Room (ID: {{ lawyer.id }})
+            </div>
+            
+            <div class="chat-window" id="chat-window">
+                {% for data in messages_data %}
+                    {% set message = data.message %}
+                    {% set reactions = data.reactions %}
+                    {% set is_sender = message.sender_id == lawyer.name %}
+
+                    <div class="message-row {{ 'lawyer-message-row' if is_sender else 'client-message-row' }}" data-message-id="{{ message.id }}">
+                        {% if not is_sender %}<div class="avatar">{{ message.sender_id[0] }}</div>{% endif %}
+                        
+                        <div class="message {{ 'lawyer-message' if is_sender else 'client-message' }}">
+                            {% if is_sender %}
+                                <button class="delete-btn" onclick="deleteMessage('{{ message.id }}')"><i class="fas fa-trash"></i></button>
+                                <button class="edit-msg-btn" onclick="startEdit('{{ message.id }}', this)"><i class="fas fa-edit"></i></button>
+                            {% endif %}
+                            
+                            <p class="message-content" data-message-id="{{ message.id }}">{{ message.content }}</p>
+                            <span style="font-size: 0.7em; opacity: 0.8;">{{ message.timestamp.strftime('%H:%M') }}</span>
+                        </div>
+
+                        {% if is_sender %}<div class="avatar">{{ lawyer.name[0] }}</div>{% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="input-area" id="input-area">
+                <input type="text" id="message-input" placeholder="Type your response...">
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const activeRoom = '{{ lawyer.id }}';
+        const lawyerName = '{{ lawyer.name }}';
+        const chatWindow = document.getElementById('chat-window');
+        const messageInput = document.getElementById('message-input');
+
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+
+        function sendMessage() {
+            const msg = messageInput.value.trim();
+            if(msg) {
+                socket.emit('message', { room: activeRoom, msg: msg, sender: lawyerName });
+                messageInput.value = '';
+            }
+        }
+
+        socket.on('new_message', function(data) {
+            location.reload(); // Simplest way to show new messages for now
+        });
+
+        function deleteMessage(id) {
+            if(confirm("Delete message?")) {
+                socket.emit('delete_message', { id: id, room: activeRoom });
+            }
+        }
+
+        socket.on('message_deleted', function(data) {
+            document.querySelector(`[data-message-id="${data.id}"]`).remove();
+        });
+    </script>
+</body>
+</html>

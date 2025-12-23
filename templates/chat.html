@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat with {{ lawyer.name }}</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* BASE STYLES */
+        body { font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background-color: #f4f7f6; }
+        .header { background-color: #004d99; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .header .title-group { display: flex; flex-direction: column; align-items: flex-start; }
+        .header h1 { margin: 0; font-size: 1.8em; }
+        .header p { margin: 0; font-size: 0.9em; color: #ffcc00; }
+        .back-link a { color: #ffcc00; text-decoration: none; font-weight: bold; }
+        .chat-container { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; max-width: 800px; margin: 0 auto; width: 100%; border-left: 1px solid #ddd; border-right: 1px solid #ddd; background-color: white;}
+        .chat-window { flex-grow: 1; padding: 15px; overflow-y: auto; background-color: #f9f9f9; }
+        .message-row { display: flex; margin-bottom: 15px; align-items: flex-end; position: relative; }
+        .avatar { width: 35px; height: 35px; border-radius: 50%; background-color: #ccc; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.2em; font-weight: bold; flex-shrink: 0; user-select: none; }
+        .message { padding: 10px 15px; border-radius: 18px; max-width: 70%; line-height: 1.4; position: relative; display: flex; flex-direction: column; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05); cursor: pointer; }
+        .client-message-row { justify-content: flex-end; }
+        .client-message { background-color: #007bff; color: white; order: 1; } 
+        .lawyer-message-row { justify-content: flex-start; }
+        .lawyer-message { background-color: #ffffff; border: 1px solid #eee; color: #333; order: 2; }
+        
+        /* Delete/Edit Buttons Styling */
+        .delete-btn, .edit-msg-btn { 
+            position: absolute; top: -10px; width: 20px; height: 20px; font-size: 0.6em; 
+            cursor: pointer; padding: 0; line-height: 1; z-index: 15; border: none; 
+            border-radius: 50%; color: white; transition: background 0.2s; 
+            background-color: #dc3545; 
+        }
+        .edit-msg-btn { background-color: #ffc107; color: #333; }
+        .message-row:hover .delete-btn, .message-row:hover .edit-msg-btn { display: block; }
+        .delete-btn { right: -10px; }
+        .edit-msg-btn { right: 15px; }
+
+        .input-area { display: flex; padding: 10px; background-color: white; border-top: 1px solid #ccc; align-items: center; }
+        .input-area input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; margin-right: 10px; }
+        .input-area button { padding: 10px 15px; color: white; border: none; border-radius: 20px; cursor: pointer; margin-left: 5px; white-space: nowrap; font-weight: bold; }
+        #send-btn { background-color: #007bff; }
+        #delete-conv-btn { background-color: #dc3545; }
+        #save-edit-btn { background-color: #28a745; }
+        #cancel-edit-btn { background-color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="title-group">
+             <h1>Lawlink</h1>
+             <p>Chat with {{ lawyer.name }} (Room: {{ room_id }})</p>
+        </div>
+        <div class="back-link">
+            <a href="{{ url_for('clear_client_session') }}">← Back to Lawyer List</a>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-window" id="chat-window">
+            {% for data in messages_data %}
+                {% set message = data.message %}
+                {% set reactions = data.reactions %}
+                {% set lawyer_initial = lawyer.name[0] %}
+                {% set client_initial = client_name[0] if client_name and client_name[0] else 'C' %}
+                
+                {% set display_initial = client_initial if message.sender_id == client_name else lawyer_initial %}
+                {% set is_sender = message.sender_id == client_name %}
+
+                <div class="message-row {% if is_sender %}client-message-row{% else %}lawyer-message-row{% endif %}" data-message-id="{{ message.id }}">
+                    
+                    {% if not is_sender %}
+                        <div class="avatar">{{ display_initial }}</div>
+                    {% endif %}
+                    
+                    <div class="message {% if is_sender %}client-message{% else %}lawyer-message{% endif %}">
+                        <div class="reaction-bar">
+                            <button onclick="sendReaction('{{ message.id }}', '👍')">👍</button>
+                            <button onclick="sendReaction('{{ message.id }}', '❤️')">❤️</button>
+                            <button onclick="sendReaction('{{ message.id }}', '😂')">😂</button>
+                        </div>
+                        
+                        {% if is_sender %}
+                        <button class="delete-btn" title="Delete Message" 
+                                onclick="deleteMessage('{{ message.id }}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <button class="edit-msg-btn" title="Edit Message" 
+                                onclick="startEdit('{{ message.id }}', this)">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        {% endif %}
+
+                        {% if not is_sender %}
+                            <div class="sender-name">{{ message.sender_id }}</div>
+                        {% endif %}
+
+                        <p class="message-content" data-message-id="{{ message.id }}">{{ message.content }}</p>
+                        
+                        <div class="message-footer">
+                            <span class="timestamp">{{ message.timestamp.strftime('%H:%M') }}</span>
+                            {% if message.is_edited %}
+                                <span class="edited-status">(edited)</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="reaction-container">
+                            {% for emoji, count in reactions.items() %}
+                                <span class="reaction-badge">{{ emoji }} {{ count }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    {% if is_sender %}
+                        <div class="avatar">{{ display_initial }}</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div id="typing-indicator"></div>
+
+        <div class="input-area" id="input-area">
+            <button id="delete-conv-btn" onclick="deleteConversation()">
+                <i class="fas fa-trash"></i> Delete Chat
+            </button>
+            <input type="text" id="message-input" placeholder="Type your message...">
+            
+            <input type="text" id="edit-mode-input" class="edit-mode-input" placeholder="Edit message..." style="display: none;">
+            <button id="cancel-edit-btn" onclick="cancelEdit()" style="display: none;">
+                Cancel
+            </button>
+            <button id="save-edit-btn" onclick="saveEdit()" style="display: none;">
+                <i class="fas fa-save"></i> Save
+            </button>
+
+            <button id="send-btn" onclick="sendMessage()">
+                <i class="fas fa-paper-plane"></i> Send
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const chatWindow = document.getElementById('chat-window');
+        const messageInput = document.getElementById('message-input');
+        const editInput = document.getElementById('edit-mode-input');
+        const inputArea = document.getElementById('input-area');
+
+        const clientName = '{{ client_name }}'; 
+        let activeRoom = '{{ room_id }}'; 
+        const socket = io(); 
+        
+        let editingMessageId = null; 
+        
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+
+        function getInitial(sender) { return sender[0].toUpperCase() || 'C'; }
+        
+        function updateReactionsDisplay(messageId, reactions) {
+            const reactionContainer = document.querySelector(`.message-row[data-message-id="${messageId}"] .reaction-container`);
+            if (reactionContainer) {
+                reactionContainer.innerHTML = '';
+                for (const emoji in reactions) {
+                    const count = reactions[emoji];
+                    const reactionSpan = document.createElement('span');
+                    reactionSpan.className = 'reaction-badge';
+                    reactionSpan.textContent = `${emoji} ${count}`; 
+                    reactionContainer.appendChild(reactionSpan);
+                }
+            }
+        }
+
+        // SOCKET.IO Handlers
+        socket.on('connect', function() { socket.emit('join', {room: activeRoom}); });
+        
+        socket.on('new_message', function(data) {
+            if (data.room == activeRoom) {
+                appendMessage(data.msg, data.sender, data.id, data.reactions, data.is_edited);
+            }
+        });
+        
+        // --- HANDLER FOR MESSAGE DELETION ---
+        socket.on('message_deleted', function(data) {
+            const messageRow = document.querySelector(`.message-row[data-message-id="${data.id}"]`);
+            if (messageRow) { 
+                messageRow.remove(); 
+            }
+        });
+
+        // --- HANDLER FOR CONVERSATION DELETION ---
+        socket.on('conversation_cleared', function(data) {
+            if (data.room == activeRoom) { 
+                // Redirect the client to the lawyer list after clearing the session
+                window.location.href = "{{ url_for('clear_client_session') }}"; 
+            }
+        });
+
+        socket.on('message_edited', function(data) {
+            const contentElement = document.querySelector(`.message-content[data-message-id="${data.id}"]`);
+            const footerElement = document.querySelector(`.message-row[data-message-id="${data.id}"] .message-footer`);
+            if (contentElement) { contentElement.textContent = data.content; }
+            if (footerElement && data.is_edited) {
+                let editedSpan = footerElement.querySelector('.edited-status');
+                if (!editedSpan) {
+                    editedSpan = document.createElement('span');
+                    editedSpan.className = 'edited-status';
+                    editedSpan.textContent = '(edited)';
+                    footerElement.appendChild(editedSpan);
+                }
+            }
+        });
+        
+        socket.on('reaction_updated', function(data) { updateReactionsDisplay(data.message_id, data.reactions); });
+        
+        socket.on('typing_indicator', function(data) {
+            const indicator = document.getElementById('typing-indicator');
+            if (data.is_typing && data.sender !== clientName) {
+                indicator.textContent = `${data.sender} is typing...`;
+                indicator.style.display = 'block';
+            } else {
+                indicator.textContent = '';
+                indicator.style.display = 'none';
+            }
+        });
+
+        // ACTION FUNCTIONS
+        function sendMessage() {
+            const messageText = messageInput.value.trim();
+            if (messageText !== "") {
+                socket.emit('message', { room: activeRoom, msg: messageText, sender: clientName });
+                messageInput.value = '';
+            }
+        }
+        
+        // --- FUNCTION TO DELETE A SINGLE MESSAGE ---
+        function deleteMessage(messageId) {
+            if (confirm("Are you sure you want to delete this message?")) {
+                socket.emit('delete_message', { id: messageId, room: activeRoom, sender: clientName });
+            }
+        }
+        
+        // --- FUNCTION TO DELETE THE ENTIRE CHAT ---
+        function deleteConversation() {
+            if (confirm("WARNING: Are you sure you want to delete the ENTIRE conversation history? This cannot be undone.")) {
+                 socket.emit('delete_conversation', { room: activeRoom, sender: clientName });
+            }
+        }
+
+        function sendReaction(messageId, emoji) {
+            socket.emit('react_to_message', { message_id: messageId, emoji: emoji, room: activeRoom, sender: clientName });
+        }
+        function startEdit(messageId, buttonElement) {
+            const contentElement = document.querySelector(`.message-row[data-message-id="${messageId}"] .message-content`);
+            editingMessageId = messageId;
+            editInput.value = contentElement.textContent.trim();
+            inputArea.classList.add('editing');
+            editInput.style.display = 'block';
+            document.getElementById('message-input').style.display = 'none';
+            document.getElementById('send-btn').style.display = 'none';
+            document.getElementById('delete-conv-btn').style.display = 'none';
+            document.getElementById('cancel-edit-btn').style.display = 'inline-block';
+            document.getElementById('save-edit-btn').style.display = 'inline-block';
+            editInput.focus();
+        }
+        function cancelEdit() {
+            editingMessageId = null;
+            editInput.value = '';
+            inputArea.classList.remove('editing');
+            editInput.style.display = 'none';
+            document.getElementById('message-input').style.display = 'block';
+            document.getElementById('send-btn').style.display = 'inline-block';
+            document.getElementById('delete-conv-btn').style.display = 'inline-block';
+            document.getElementById('cancel-edit-btn').style.display = 'none';
+            document.getElementById('save-edit-btn').style.display = 'none';
+        }
+        function saveEdit() {
+            if (editingMessageId) {
+                const newContent = editInput.value.trim();
+                if (newContent !== "") {
+                    socket.emit('edit_message', { id: editingMessageId, content: newContent, room: activeRoom, sender: clientName });
+                    cancelEdit(); 
+                } else {
+                    alert("Message content cannot be empty.");
+                }
+            }
+        }
+        function appendMessage(text, sender, messageId, reactions, isEdited) {
+            const messageRow = document.createElement('div');
+            messageRow.classList.add('message-row', sender === clientName ? 'client-message-row' : 'lawyer-message-row');
+            messageRow.setAttribute('data-message-id', messageId);
+
+            const isSender = sender === clientName;
+            const displayInitial = getInitial(sender);
+
+            const reactionBarHTML = `<div class="reaction-bar"><button onclick="sendReaction('${messageId}', '👍')">👍</button><button onclick="sendReaction('${messageId}', '❤️')">❤️</button><button onclick="sendReaction('${messageId}', '😂')">😂</button></div>`;
+            const reactionContainerHTML = '<div class="reaction-container"></div>';
+            const editedSpanHTML = isEdited ? '<span class="edited-status">(edited)</span>' : '';
+            const editButtonHTML = isSender ? `<button class="edit-msg-btn" title="Edit Message" onclick="startEdit('${messageId}', this)"><i class="fas fa-edit"></i></button>` : '';
+            const deleteButtonHTML = isSender ? `<button class="delete-btn" title="Delete Message" onclick="deleteMessage('${messageId}')"><i class="fas fa-trash"></i></button>` : '';
+
+            if (isSender) {
+                messageRow.innerHTML = `<div class="message client-message">${reactionBarHTML}${deleteButtonHTML}${editButtonHTML}<p class="message-content" data-message-id="${messageId}">${text}</p><div class="message-footer"><span class="timestamp">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>${editedSpanHTML}</div>${reactionContainerHTML}</div><div class="avatar">${displayInitial}</div>`;
+            } else {
+                messageRow.innerHTML = `<div class="avatar">${displayInitial}</div><div class="message lawyer-message">${reactionBarHTML}<div class="sender-name">${sender}</div><p class="message-content" data-message-id="${messageId}">${text}</p><div class="message-footer"><span class="timestamp">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>${editedSpanHTML}</div>${reactionContainerHTML}</div>`;
+            }
+
+            chatWindow.appendChild(messageRow);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+            updateReactionsDisplay(messageId, reactions);
+        }
+        
+        messageInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter' && !inputArea.classList.contains('editing')) { sendMessage(); }
+        });
+        
+        editInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter' && inputArea.classList.contains('editing')) { saveEdit(); }
+        });
+    </script>
+</body>
+</html>
